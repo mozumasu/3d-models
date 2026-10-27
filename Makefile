@@ -2,9 +2,9 @@ VENV := $(CURDIR)/.venv
 PYTHON := $(VENV)/bin/python
 STAMP := $(VENV)/.installed
 
-.PHONY: all setup anker-powerexpand-elite-holder ore ipad-pro-11-rails
+.PHONY: all setup anker-powerexpand-elite-holder ore ipad-pro-11-tray
 
-all: anker-powerexpand-elite-holder ore ipad-pro-11-rails
+all: anker-powerexpand-elite-holder ore ipad-pro-11-tray
 
 setup: $(STAMP)
 
@@ -25,6 +25,8 @@ ore: $(STAMP)
 	cd $@ && $(PYTHON) ore.py -o stl/ore.stl && \
 		$(PYTHON) ../tools/preview.py stl/ore.stl images/preview.png
 
-ipad-pro-11-rails: $(STAMP)
-	cd $@ && $(PYTHON) rails.py -o stl/rails.stl && \
-		$(PYTHON) ../tools/preview.py stl/rails.stl images/preview.png
+ipad-pro-11-tray: $(STAMP)
+	cd $@ && $(PYTHON) tray.py -o stl/tray.stl && \
+		$(PYTHON) ../tools/preview.py stl/tray.stl images/preview-parts.png && \
+		$(PYTHON) tray.py --assembled -o $(VENV)/assembled.stl && \
+		$(PYTHON) ../tools/preview.py $(VENV)/assembled.stl images/preview.png
