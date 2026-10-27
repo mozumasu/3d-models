@@ -34,5 +34,7 @@ ipad-pro-11-tray: $(STAMP)
 	$(PYTHON) ../tools/preview.py $(VENV)/assembled.stl images/preview.png
 
 desk-audio-hanger: $(STAMP)
-	mkdir -p $@/stl $@/images && cd $@ && $(PYTHON) hanger.py -o stl/hanger.stl && \
-		$(PYTHON) ../tools/preview.py stl/hanger.stl images/preview.png
+	mkdir -p $@/stl $@/images && cd $@ && for p in hanger cradle hook; do \
+		$(PYTHON) hanger.py --part $$p -o stl/$$p.stl && \
+		$(PYTHON) ../tools/preview.py stl/$$p.stl images/preview-$$p.png; \
+	done

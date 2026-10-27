@@ -1,15 +1,22 @@
 """イヤホンのケースとヘッドホンを、充電しながら机の下に掛けておくハンガー (Bambu Lab A1 mini 向け)
 
-天板の裏に両面テープで貼る。左がイヤホンのケースを立てて入れるポケット、右がヘッドホンを掛けるフック。
-  ポケット: ケースを前から斜めに入れて、底に立てる。手前の下のほうに渡した棒で、前へ倒れ出ないようにする。
-            底の真ん中は前後に抜けたすき間になっていて、ケースの底に差したケーブルを前から通せる。
-  フック:   ポケットの右の壁の下から横に伸びる腕。先が上に折れていて、ヘッドバンドが抜けない。
+部品は 3 種類あり、--part で選ぶ。どれも両面テープで貼る。
+  hanger: 天板の裏に貼る。左がイヤホンのケースを立てて入れるポケット、右がヘッドホンを掛けるフック。
+          ケースは充電口を下にして立て、底の真ん中の前後に抜けたすき間にケーブルを前から通す。
+  cradle: 充電器の下の面に貼り、充電器の真下にケースを置く受け皿。
+          ケースは充電口を上にして (ふたを下にして) 立て、上のすき間からケーブルを差す。
+  hook:   天板の裏に貼る、ヘッドホンを掛けるフックだけ。cradle と組み合わせて使う。
 
-使用時の座標: X=左右, Y=前後 (Y=0 が手前), Z=上 (天板の裏が Z 最大)
+ポケットと受け皿は、ケースを前から斜めに入れて底に立てる。手前の下のほうに渡した棒で、前へ倒れ出ないようにする。
+フックは、壁の下から横に伸びる腕の先が上に折れていて、ヘッドバンドが抜けない。
+
+使用時の座標: X=左右, Y=前後 (Y=0 が手前), Z=上 (貼る面が Z 最大)
 STL は奥の面を下にした向きで書き出す。正面から見た形をそのまま積み上げるだけなので、サポートは要らない。
 手前の棒は左右の壁の間に渡したブリッジになる。
 
-使い方: python hanger.py -o stl/hanger.stl
+使い方: python hanger.py --part hanger -o stl/hanger.stl
+        python hanger.py --part cradle -o stl/cradle.stl
+        python hanger.py --part hook -o stl/hook.stl
 """
 import argparse
 import struct
@@ -18,42 +25,46 @@ import numpy as np
 from manifold3d import CrossSection, JoinType, Manifold
 
 # --- イヤホンのケースの寸法 (カバーを付けた状態で測って直す) ---
-CASE_W = 64.0   # 幅 (ケーブルを差す面の長いほうの辺)
+CASE_W = 64.0   # 幅 (充電口のある面の長いほうの辺)
 CASE_T = 25.0   # 厚さ
-CASE_H = 50.0   # 高さ (ケーブルを差す面からふたの上まで)
+CASE_H = 50.0   # 高さ (充電口のある面からふたの上まで)
 
 # --- パラメータ ---
 CLEAR = 1.5     # ケースとのすき間 (幅と厚さ、それぞれ合計)
 WALL = 3.0      # 左右の壁の厚さ
 FLOOR_T = 3.0   # 底の厚さ
-PLATE_T = 3.0   # 天板に貼る板の厚さ
+PLATE_T = 3.0   # 貼る板の厚さ
 BACK_T = 2.5    # 奥の板の厚さ
 WINDOW = 8.0    # 奥の板の窓のふちの幅
-CABLE_W = 14.0  # 底の真ん中の、ケーブルのプラグを通すすき間の幅
-BAR_Z0 = 6.0    # 手前の棒の下の端 (底の上面から)。この下からケーブルを通す
+CABLE_W = 14.0  # hanger: 底の真ん中の、ケーブルのプラグを通すすき間の幅
+PLUG_H = 28.0   # cradle: ケースの上から充電器の下の面までの、プラグを差すすき間
+BAR_Z0 = 6.0    # 手前の棒の下の端 (底の上面から)。hanger ではこの下からケーブルを通す
 BAR_Z1 = 14.0   # 手前の棒の上の端
 BAR_T = 3.0     # 手前の棒の厚さ
-LIFT = 4.0      # ケースを棒の上まで持ち上げて出し入れするときの余裕
+LIFT = 4.0      # hanger: ケースを棒の上まで持ち上げて出し入れするときの余裕
 ARM = 35.0      # フックの腕の長さ (壁の外から先まで)
 ARM_T = 6.0     # 腕の太さ
 LIP_H = 14.0    # 腕の先の折れ上がりの高さ
 LIP_T = 5.0     # 折れ上がりの厚さ
+HOOK_H = 45.0   # hook: 貼る面から腕の下の面までの高さ
+HOOK_D = 30.0   # hook: 奥行き
 R_FIL = 6.0     # 腕と壁、板と壁の間の丸み
 R_OUT = 1.5     # 外側の角の丸み
 R_IN = 0.7      # ポケットの内側の角の丸み (左右のすき間より大きくするとケースの角に当たる)
 SEG = 48
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument("--part", choices=["hanger", "cradle", "hook"], default="hanger")
 parser.add_argument("-o", "--output", default="hanger.stl")
 args = parser.parse_args()
 
 iw = (CASE_W + CLEAR) / 2         # ポケットの内側の半分の幅
 ow = iw + WALL                    # 外側の半分の幅
-inner_h = BAR_Z1 + CASE_H + LIFT  # 底の上面から板の下面まで
+# 底の上面から貼る板の下面まで。cradle はケースの上にプラグのすき間を空け、棒を越えて出し入れする高さもそこでまかなう
+inner_h = CASE_H + (max(PLUG_H, BAR_Z1 + LIFT) if args.part == "cradle" else BAR_Z1 + LIFT)
 z_plate = FLOOR_T + inner_h
 total_h = z_plate + PLATE_T
 depth = BAR_T + CASE_T + CLEAR + BACK_T
-x_tip = ow + ARM
 
 
 def rect(xa, xb, z0, z1):
@@ -75,27 +86,50 @@ def extrude_y(prof, y0, y1):
     return Manifold.extrude(prof, y1 - y0).rotate([90, 0, 0]).translate([0, y1, 0])
 
 
-# ---------- 正面から見た形 (XZ) ----------
-prof = rect(-ow, ow, 0, total_h)                              # ポケットの外形
-prof = prof + rect(-ow, x_tip, z_plate, total_h)              # 天板に貼る板 (フックの上まで伸ばす)
-prof = prof + rect(ow - 1, x_tip, 0, ARM_T)                   # フックの腕
-prof = prof + rect(x_tip - LIP_T, x_tip, 0, LIP_H)            # 腕の先の折れ上がり
-# へこんだ角を丸めてから、出っ張った角を丸める
-prof = prof.offset(R_FIL, JoinType.Round, 2.0, SEG).offset(-R_FIL, JoinType.Round, 2.0, SEG)
-prof = prof.offset(-R_OUT, JoinType.Round, 2.0, SEG).offset(R_OUT, JoinType.Round, 2.0, SEG)
-prof = prof - rounded_rect(-iw, iw, FLOOR_T, z_plate, R_IN)  # ポケットの中
-prof = prof - rect(-CABLE_W / 2, CABLE_W / 2, -1, FLOOR_T + 1)  # ケーブルを通すすき間
-body = extrude_y(prof, 0, depth)
+def smooth(prof):
+    """へこんだ角を丸めてから、出っ張った角を丸める"""
+    prof = prof.offset(R_FIL, JoinType.Round, 2.0, SEG).offset(-R_FIL, JoinType.Round, 2.0, SEG)
+    return prof.offset(-R_OUT, JoinType.Round, 2.0, SEG).offset(R_OUT, JoinType.Round, 2.0, SEG)
 
-# ---------- 奥の板 (真ん中は窓にして軽くする) ----------
-back = rect(-iw - 0.01, iw + 0.01, FLOOR_T - 0.01, z_plate + 0.01) - rounded_rect(-iw + WINDOW, iw - WINDOW, FLOOR_T + WINDOW, z_plate - WINDOW, 4.0)
-body = body + extrude_y(back, depth - BACK_T, depth)
 
-# ---------- 手前の棒 ----------
-body = body + box(-iw - 0.01, iw + 0.01, 0, BAR_T, FLOOR_T + BAR_Z0, FLOOR_T + BAR_Z1)
+def hook_arm(x0):
+    """x0 から右へ伸びる腕と、先の折れ上がり (正面から見た形)"""
+    x_tip = x0 + ARM
+    return rect(x0 - 1, x_tip, 0, ARM_T) + rect(x_tip - LIP_T, x_tip, 0, LIP_H)
+
+
+def pocket(with_hook):
+    """ケースを立てて入れるポケット。with_hook で右の壁にフックを付ける"""
+    x_right = ow + ARM if with_hook else ow
+    prof = rect(-ow, ow, 0, total_h) + rect(-ow, x_right, z_plate, total_h)
+    if with_hook:
+        prof = prof + hook_arm(ow)
+    prof = smooth(prof)
+    prof = prof - rounded_rect(-iw, iw, FLOOR_T, z_plate, R_IN)        # ポケットの中
+    if args.part == "hanger":
+        prof = prof - rect(-CABLE_W / 2, CABLE_W / 2, -1, FLOOR_T + 1)  # ケーブルを通すすき間
+    body = extrude_y(prof, 0, depth)
+
+    # 奥の板 (真ん中は窓にして軽くする)
+    back = rect(-iw - 0.01, iw + 0.01, FLOOR_T - 0.01, z_plate + 0.01) - rounded_rect(
+        -iw + WINDOW, iw - WINDOW, FLOOR_T + WINDOW, z_plate - WINDOW, 4.0)
+    body = body + extrude_y(back, depth - BACK_T, depth)
+
+    # 手前の棒
+    return body + box(-iw - 0.01, iw + 0.01, 0, BAR_T, FLOOR_T + BAR_Z0, FLOOR_T + BAR_Z1)
+
+
+def hook():
+    # 縦の柱と貼る板は腕と同じ太さにする (薄いと角を丸めるときに消える)
+    top = HOOK_H + ARM_T
+    prof = rect(0, ARM_T, 0, top) + rect(0, ARM_T + ARM, HOOK_H, top) + hook_arm(ARM_T)
+    return extrude_y(smooth(prof), 0, HOOK_D)
+
+
+body = hook() if args.part == "hook" else pocket(args.part == "hanger")
 
 # ---------- 書き出し ----------
-# 印刷向き: 奥の面 (Y=depth) を下に
+# 印刷向き: 奥の面 (Y 最大) を下に
 printed = body.rotate([-90, 0, 0])
 bb = printed.bounding_box()
 printed = printed.translate([-bb[0], -bb[1], -bb[2]])
@@ -118,5 +152,5 @@ def write_stl(m, path):
 
 write_stl(printed, args.output)
 bb = printed.bounding_box()
-print(f"size (print orientation): {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm")
+print(f"{args.part}: size (print orientation): {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm")
 print(f"volume: {printed.volume()/1000:.1f} cm3, genus: {printed.genus()}, status: {printed.status()}")
