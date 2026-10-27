@@ -6,8 +6,13 @@
 通気口のデザインは 2 種類から選べる。
   stripe:  前後方向に長い角丸スリット (すっきりした見た目)
   lattice: ひし形の格子 (トラス風で軽い)
+取り付け方も 2 種類から選べる。
+  screw: 左右のフランジを木ネジで天板の裏に留める
+  tape:  フランジなし。天板側の板を穴のない平らな面にして、両面テープで貼る
+--floor を付けると、下をレールではなく床でふさぐ (床にも通気口を開ける)。
 
 使い方: python holder.py --style stripe -o stl/holder-stripe.stl
+        python holder.py --mount tape --floor --wall 3.2 --rib 4 -o stl/holder-tape.stl
 """
 import argparse
 import struct
@@ -46,12 +51,19 @@ SLOT_RIB = 3.0  # スリットどうしの間の骨の太さ
 SLOT_END = 9.0  # スリットの端から前後端までの距離
 VENT_H = 9.0    # ひし形の中心から頂点まで (lattice)
 VENT_RIB = 2.2  # ひし形どうしの間の骨の太さ (lattice)
+TAPE_SKIN = 1.6 # テープで貼るとき、天板側の板の貼る面に残す厚さ
 SEG = 64
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("--style", choices=["stripe", "lattice"], default="stripe")
+parser.add_argument("--mount", choices=["screw", "tape"], default="screw")
+parser.add_argument("--floor", action="store_true", help="下を床でふさぐ")
+parser.add_argument("--wall", type=float, default=WALL, help="側壁の厚さ")
+parser.add_argument("--rib", type=float, default=SLOT_RIB, help="スリットどうしの間の骨の太さ (stripe)")
 parser.add_argument("-o", "--output", default="holder.stl")
 args = parser.parse_args()
+WALL, SLOT_RIB = args.wall, args.rib
+screw = args.mount == "screw"
 
 inner_w = DOCK_W + CLEAR_W
 inner_h = DOCK_H + CLEAR_H
@@ -60,7 +72,7 @@ depth = DOCK_D + CLEAR_D + 2 * stop_l
 outer_w = inner_w + 2 * WALL
 z_plate = RAIL_T + inner_h
 total_h = z_plate + PLATE_T
-total_w = outer_w + 2 * FLANGE
+total_w = outer_w + 2 * FLANGE if screw else outer_w
 ow, iw = outer_w / 2, inner_w / 2
 
 
@@ -99,13 +111,14 @@ def stadium(p0, p1, w):
 prof = rounded_rect(-ow, 0, ow, total_h + R_OUT, R_OUT) ^ rect(-ow, 0, ow, total_h)
 prof = prof + rect(-total_w / 2, z_plate, total_w / 2, total_h)
 # 側壁とフランジの間を丸くつなぐ
-for sx in (-1, 1):
+for sx in ((-1, 1) if screw else ()):
     cx = sx * (ow + R_FILLET)
     corner = rect(min(sx * ow, cx), z_plate - R_FILLET, max(sx * ow, cx), z_plate)
     prof = prof + (corner - CrossSection.circle(R_FILLET, SEG).translate([cx, z_plate - R_FILLET]))
 # ドックが入る空間と、下の開口
 prof = prof - rounded_rect(-iw, RAIL_T, iw, z_plate, R_IN)
-prof = prof - rect(-(iw - RAIL_W), -1, iw - RAIL_W, RAIL_T + R_IN)
+if not args.floor:
+    prof = prof - rect(-(iw - RAIL_W), -1, iw - RAIL_W, RAIL_T + R_IN)
 # 残りの角を軽く丸める (opening: 出っ張った角だけが丸くなる)
 prof = prof.offset(-R_EDGE, JoinType.Round, 2.0, SEG).offset(R_EDGE, JoinType.Round, 2.0, SEG)
 
@@ -113,7 +126,7 @@ prof = prof.offset(-R_EDGE, JoinType.Round, 2.0, SEG).offset(R_EDGE, JoinType.Ro
 body = Manifold.extrude(prof, depth).rotate([90, 0, 0]).translate([0, depth, 0])
 
 # ---------- フランジを前後端のタブだけにする (上から見て 45° に絞る) ----------
-for sx in (-1, 1):
+for sx in ((-1, 1) if screw else ()):
     x0, x1 = sx * ow, sx * (total_w / 2 + 1)
     run = abs(x1 - x0)
     cuts = [poly([(x0, TAB_L), (x1, TAB_L - run), (x1, depth - TAB_L + run), (x0, depth - TAB_L)])]
@@ -133,7 +146,7 @@ if STOP_H > 0:
 # ---------- ネジ穴 (下から皿ネジで天板裏へ) ----------
 hole_x = ow + FLANGE / 2
 csk_h = (CSK_D - SCREW_D) / 2
-for sx in (-1, 1):
+for sx in ((-1, 1) if screw else ()):
     for y in (HOLE_Y, depth - HOLE_Y):
         body = body - Manifold.cylinder(PLATE_T + 2, SCREW_D / 2, SCREW_D / 2, SEG).translate([sx * hole_x, y, z_plate - 1])
         body = body - Manifold.cylinder(csk_h + 0.01, CSK_D / 2, SCREW_D / 2, SEG).translate([sx * hole_x, y, z_plate - 0.01])
@@ -186,12 +199,18 @@ else:
 for sx in (-1, 1):
     t0, t1 = sorted((sx * (iw - 0.5), sx * (ow + 1)))
     body = body - wall_cutter(wall_vents, t0, t1)
-# 天板側の板
-body = body - flat_cutter(plate_vents, z_plate - 1, total_h + 1)
-# 下のレール
-for sx in (-1, 1):
-    b0, b1 = sorted((sx * (iw - 2), sx * (iw - RAIL_W + 2)))
-    body = body - flat_cutter(rail_vents(b0, b1), -1, RAIL_T + 1)
+# 天板側の板 (テープで貼るときは、貼る面を平らに残して内側だけ肉抜きする)
+if screw:
+    body = body - flat_cutter(plate_vents, z_plate - 1, total_h + 1)
+else:
+    body = body - flat_cutter(plate_vents, z_plate - 1, total_h - TAPE_SKIN)
+# 下のレールか床
+if args.floor:
+    body = body - flat_cutter(rail_vents(-iw + 3, iw - 3), -1, RAIL_T + 1)
+else:
+    for sx in (-1, 1):
+        b0, b1 = sorted((sx * (iw - 2), sx * (iw - RAIL_W + 2)))
+        body = body - flat_cutter(rail_vents(b0, b1), -1, RAIL_T + 1)
 
 # ---------- 書き出し ----------
 # 印刷向き: 前面 (Y=0) を下に
@@ -217,5 +236,5 @@ def write_stl(m, path):
 
 write_stl(printed, args.output)
 bb = printed.bounding_box()
-print(f"{args.style}: size (print orientation): {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm")
+print(f"{args.style}/{args.mount}{'/floor' if args.floor else ''}: size (print orientation): {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm")
 print(f"volume: {printed.volume()/1000:.1f} cm3, genus: {printed.genus()}, status: {printed.status()}")
