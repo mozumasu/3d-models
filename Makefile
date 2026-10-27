@@ -17,7 +17,7 @@ anker-powerexpand-elite-holder: $(STAMP)
 	cd $@ && for s in stripe lattice; do \
 		$(PYTHON) holder.py --style $$s -o stl/holder-$$s.stl && \
 		$(PYTHON) ../tools/preview.py stl/holder-$$s.stl images/preview-$$s.png && \
-		$(PYTHON) holder.py --style $$s --mount tape --floor --wall 3.2 --rib 4 -o stl/holder-$$s-tape.stl && \
+		$(PYTHON) holder.py --style $$s --mount tape --floor --fence --wall 3.2 --rib 4 -o stl/holder-$$s-tape.stl && \
 		$(PYTHON) ../tools/preview.py stl/holder-$$s-tape.stl images/preview-$$s-tape.png; \
 	done
 

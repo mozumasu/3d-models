@@ -1,7 +1,7 @@
 """Anker PowerExpand Elite 13-in-1 用 デスク下ホルダー (Bambu Lab A1 mini 向け)
 
 使用時の座標: X=幅, Y=奥行き(前後にポート), Z=上 (天板の裏が Z 最大)
-出力 STL は横倒し (前面を下) にしてあり、サポートなしで印刷できる。
+出力 STL は横倒し (後ろの面を下) にしてあり、サポートなしで印刷できる。
 斜めの形はすべて印刷時に 45° 以下になるようにしてある。
 通気口のデザインは 2 種類から選べる。
   stripe:  前後方向に長い角丸スリット (すっきりした見た目)
@@ -10,9 +10,10 @@
   screw: 左右のフランジを木ネジで天板の裏に留める
   tape:  フランジなし。天板側の板を穴のない平らな面にして、両面テープで貼る
 --floor を付けると、下をレールではなく床でふさぐ (床にも通気口を開ける)。
+--fence を付けると、後ろの口の下と左右のふちに柵を付けて、ドックが後ろへ抜けないようにする (--floor と一緒に使う)。
 
 使い方: python holder.py --style stripe -o stl/holder-stripe.stl
-        python holder.py --mount tape --floor --wall 3.2 --rib 4 -o stl/holder-tape.stl
+        python holder.py --mount tape --floor --fence --wall 3.2 --rib 4 -o stl/holder-tape.stl
 """
 import argparse
 import struct
@@ -52,23 +53,31 @@ SLOT_END = 9.0  # スリットの端から前後端までの距離
 VENT_H = 9.0    # ひし形の中心から頂点まで (lattice)
 VENT_RIB = 2.2  # ひし形どうしの間の骨の太さ (lattice)
 TAPE_SKIN = 1.6 # テープで貼るとき、天板側の板の貼る面に残す厚さ
+FENCE = 6.0     # 後ろの柵が口のふちから内側へ張り出す長さ
+FENCE_STEP = 1.5  # 柵のドック側の面の、まっすぐな段の高さ (この先は 45° の斜面)
+FENCE_T = 2.0   # 柵の、斜面のあとのまっすぐな部分の厚さ
 SEG = 64
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("--style", choices=["stripe", "lattice"], default="stripe")
 parser.add_argument("--mount", choices=["screw", "tape"], default="screw")
 parser.add_argument("--floor", action="store_true", help="下を床でふさぐ")
+parser.add_argument("--fence", action="store_true", help="後ろに柵を付ける (--floor と一緒に使う)")
 parser.add_argument("--wall", type=float, default=WALL, help="側壁の厚さ")
 parser.add_argument("--rib", type=float, default=SLOT_RIB, help="スリットどうしの間の骨の太さ (stripe)")
 parser.add_argument("-o", "--output", default="holder.stl")
 args = parser.parse_args()
 WALL, SLOT_RIB = args.wall, args.rib
+if args.fence and not args.floor:
+    parser.error("--fence は --floor と一緒に使ってください (床がないと柵の下の辺が宙に浮きます)")
 screw = args.mount == "screw"
 
 inner_w = DOCK_W + CLEAR_W
 inner_h = DOCK_H + CLEAR_H
 stop_l = STOP_L if STOP_H > 0 else 0.0
-depth = DOCK_D + CLEAR_D + 2 * stop_l
+y_back = stop_l + DOCK_D + CLEAR_D  # ドックの後ろの面が来る位置
+fence_l = FENCE - FENCE_STEP + FENCE_T
+depth = y_back + (fence_l if args.fence else stop_l)
 outer_w = inner_w + 2 * WALL
 z_plate = RAIL_T + inner_h
 total_h = z_plate + PLATE_T
@@ -140,7 +149,7 @@ for sx in ((-1, 1) if screw else ()):
 if STOP_H > 0:
     for sx in (-1, 1):
         xa, xb = sorted((sx * (iw - 1.5), sx * (iw - RAIL_W + 1.5)))
-        for y0 in (0, depth - stop_l):
+        for y0 in ((0,) if args.fence else (0, depth - stop_l)):
             body = body + box(xa, y0, RAIL_T - 0.5, xb, y0 + stop_l, RAIL_T + STOP_H)
 
 # ---------- ネジ穴 (下から皿ネジで天板裏へ) ----------
@@ -212,8 +221,21 @@ else:
         b0, b1 = sorted((sx * (iw - 2), sx * (iw - RAIL_W + 2)))
         body = body - flat_cutter(rail_vents(b0, b1), -1, RAIL_T + 1)
 
+# ---------- 後ろの柵 ----------
+# 口の下と左右のふちを内側へ張り出させる。ドック側の面は小さな段から 45° の斜面にして、角に力が集まらないようにする。
+# 印刷時は柵がベッドに着く側になるので、張り出しにはならない。
+# 上は開けたままにして、真ん中のポートにケーブルを差せるようにする
+if args.fence:
+    def opening(y, r):
+        return [(x, y, z) for x in (-(iw - r), iw - r) for z in (RAIL_T + r, z_plate + 1)]
+
+    ramp_end = y_back + FENCE - FENCE_STEP
+    hole = (Manifold.hull_points(opening(y_back - 1, FENCE_STEP) + opening(ramp_end, FENCE))
+            + Manifold.hull_points(opening(ramp_end, FENCE) + opening(depth + 1, FENCE)))
+    body = body + (box(-iw - 0.01, y_back, RAIL_T - 0.01, iw + 0.01, depth, z_plate) - hole)
+
 # ---------- 書き出し ----------
-# 印刷向き: 前面 (Y=0) を下に
+# 印刷向き: 後ろの面 (Y=depth) を下に
 printed = body.rotate([-90, 0, 0])
 bb = printed.bounding_box()
 printed = printed.translate([-bb[0], -bb[1], -bb[2]])
@@ -236,5 +258,5 @@ def write_stl(m, path):
 
 write_stl(printed, args.output)
 bb = printed.bounding_box()
-print(f"{args.style}/{args.mount}{'/floor' if args.floor else ''}: size (print orientation): {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm")
+print(f"{args.style}/{args.mount}{'/floor' if args.floor else ''}{'/fence' if args.fence else ''}: size (print orientation): {bb[3]-bb[0]:.1f} x {bb[4]-bb[1]:.1f} x {bb[5]-bb[2]:.1f} mm")
 print(f"volume: {printed.volume()/1000:.1f} cm3, genus: {printed.genus()}, status: {printed.status()}")
