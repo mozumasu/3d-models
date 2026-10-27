@@ -2,7 +2,8 @@
 
 断面がコの字のトレーで、底板に iPad を寝かせ、上の板を両面テープで天板の裏に貼る。
 iPad の幅 (249.7 mm) は A1 mini の造形範囲 (180 mm) に収まらないので、トレーを左右の半分に分けている。
-左右の底板は真ん中で段違いに重なり、右の底板が左の底板の上に載る。iPad の通り道には何も出っ張らない。
+左右の底板は真ん中の蟻継ぎ (台形の凸と溝) でつなぐ。右の半分を前から滑り込ませると、左右にも上下にも外れない。
+蟻継ぎのところだけ、底板の下に背骨のような出っ張りがある。iPad の通り道には何も出っ張らない。
 iPad は前から差し込み、奥の抜け止めで止まる。手前は少しはみ出して、つかんで引き出せる。
 
 使用時の座標: X=左右 (X=0 がトレーの真ん中), Y=前後 (Y=0 が手前), Z=上 (天板の裏が Z 最大)
@@ -27,9 +28,14 @@ CLEAR_W = 2.0   # 左右のすき間 (合計)
 INNER_H = 20.0  # 底板の上面から上の板の下面までの高さ (ケースを付けても入るように)
 LENGTH = 170.0  # トレーの奥行き (iPad の手前が少しはみ出す)
 WALL = 3.0      # 横の壁の厚さ
-FLOOR_T = 4.0   # 底板の厚さ (真ん中の重なりでは半分ずつ)
-LAP = 15.0      # 真ん中で左右の底板が重なる幅
-LAP_GAP = 0.3   # 重なりのすき間
+FLOOR_T = 4.0   # 底板の厚さ
+SPINE_D = 10.0  # 真ん中の背骨が底板の下に出る深さ
+SPINE_W = 14.0  # 背骨の片側の幅 (真ん中からの距離)
+DT_NECK = 4.0   # 蟻継ぎの凸の首の太さ
+DT_NECK_L = 2.0 # 首の長さ
+DT_HEAD = 9.0   # 凸の頭の太さ (首から 45° で広がる)
+DT_L = 8.0      # 凸の長さ (首から頭の先まで)
+DT_GAP = 0.25   # 蟻継ぎのすき間 (きついときは増やす)
 TAB_T = 3.0     # 上の板の厚さ
 TAB_W = 25.0    # 上の板の張り出し (両面テープを貼る幅)
 STOP_H = 3.0    # 奥の抜け止めの高さ
@@ -57,6 +63,12 @@ def rect(xa, xb, z0, z1):
     """x は xa と xb のどちらが大きくてもよい"""
     x0, x1 = sorted((xa, xb))
     return CrossSection.square([x1 - x0, z1 - z0]).translate([x0, z0])
+
+
+def poly(pts):
+    """頂点の回り順を気にせず多角形を作る"""
+    cs = CrossSection([pts])
+    return cs if cs.area() > 0 else CrossSection([pts[::-1]])
 
 
 def round_convex(cs, r):
@@ -108,19 +120,30 @@ def half_tray(side):
     # 外側の 2 つの角を大きめに丸める (真ん中側は相手とつなぐので丸めない)
     far = -side * 50
     outline = rect(xo - side * R_OUT, far, R_OUT, total_h - R_OUT).offset(R_OUT, JoinType.Round, 2.0, SEG)
-    prof = prof ^ (outline + rect(xw, far, -1, total_h + 1))
-    # 真ん中の重なり: 左は底板の下半分を、右は上半分を、真ん中から相手側へ LAP/2 伸ばす。
-    # 相手の重なりが入るところは、自分の底板を半分の厚さにする
+    prof = prof ^ (outline + rect(xw, far, -SPINE_D - 1, total_h + 1))
+    # 真ん中の背骨: 底板の下に出し、外側の下の角は 45° に落とす
+    zb = -SPINE_D
+    prof = prof + poly([(0, FLOOR_T), (0, zb), (side * (SPINE_W - SPINE_D / 2), zb),
+                        (side * (SPINE_W + SPINE_D / 2), 0), (side * (SPINE_W + SPINE_D / 2), FLOOR_T)])
+    # 蟻継ぎ: 左の半分に凸、右の半分に溝。凸は細い首から 45° で広がる頭を持つ
+    zc = (zb + FLOOR_T) / 2
+
+    def dovetail(grow):
+        n, h = DT_NECK / 2 + grow, DT_HEAD / 2 + grow
+        x_flare = DT_NECK_L + (DT_HEAD - DT_NECK) / 2  # 頭が太さいっぱいになる位置
+        return poly([(-grow, zc - n), (DT_NECK_L, zc - n), (x_flare, zc - h), (DT_L + grow, zc - h),
+                     (DT_L + grow, zc + h), (x_flare, zc + h), (DT_NECK_L, zc + n), (-grow, zc + n)])
+
     if side < 0:
-        prof = prof - rect(0, -LAP / 2, half_t - LAP_GAP / 2, FLOOR_T + 1) + rect(0, LAP / 2, 0, half_t - LAP_GAP / 2)
+        prof = prof + dovetail(0)
     else:
-        prof = prof - rect(0, LAP / 2, -1, half_t + LAP_GAP / 2) + rect(0, -LAP / 2, half_t + LAP_GAP / 2, FLOOR_T)
+        prof = prof - dovetail(DT_GAP)
 
     # XZ 断面を Y 方向へ押し出す
     body = Manifold.extrude(prof, LENGTH).rotate([90, 0, 0]).translate([0, LENGTH, 0])
 
     # 底板の肉抜き: 前後に長いスリット (印刷時は縦長になるので、ブリッジは丸い端だけ)
-    b0, b1 = sorted((xw - side * 8, side * (LAP / 2 + 6)))
+    b0, b1 = sorted((xw - side * 8, side * (SPINE_W + SPINE_D / 2 + 4)))
     n = max(1, int((b1 - b0 + SLOT_RIB) // (SLOT_W + SLOT_RIB)))
     first = (b0 + b1) / 2 - (n * SLOT_W + (n - 1) * SLOT_RIB) / 2 + SLOT_W / 2
     slots = union([stadium((first + i * (SLOT_W + SLOT_RIB), SLOT_END + SLOT_W / 2),
@@ -129,8 +152,8 @@ def half_tray(side):
     body = body - Manifold.extrude(slots, FLOOR_T + 2).translate([0, 0, -1])
 
     # 奥の抜け止め: 手前側を 45° の斜面にして、印刷時の張り出しをなくす。
-    # 真ん中の重なりの上には付けない (相手の底板とぶつかるため)
-    x0, x1 = sorted((xw - side * R_IN, side * (LAP / 2 + 0.5)))
+    # 真ん中の継ぎ目の上には付けない (相手とぶつからないように)
+    x0, x1 = sorted((xw - side * R_IN, side * (DT_L + DT_GAP + 0.5)))
     body = body + Manifold.hull_points([
         (x, y, z)
         for x in (x0, x1)
