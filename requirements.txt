@@ -1,3 +1,4 @@
 manifold3d
 numpy
 matplotlib
+fonttools

@@ -5,6 +5,7 @@
 | モデル | 内容 |
 | --- | --- |
 | [anker-powerexpand-elite-holder](anker-powerexpand-elite-holder/) | Anker PowerExpand Elite 13-in-1 をデスクの天板の裏に取り付けるホルダー |
+| [ore](ore/) | 「俺」の字のオブジェ |
 
 ## STL の作り直し方
 
