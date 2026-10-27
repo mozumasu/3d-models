@@ -26,7 +26,9 @@ ore: $(STAMP)
 		$(PYTHON) ../tools/preview.py stl/ore.stl images/preview.png
 
 ipad-pro-11-tray: $(STAMP)
-	cd $@ && $(PYTHON) tray.py -o stl/tray.stl && \
-		$(PYTHON) ../tools/preview.py stl/tray.stl images/preview-parts.png && \
-		$(PYTHON) tray.py --assembled -o $(VENV)/assembled.stl && \
-		$(PYTHON) ../tools/preview.py $(VENV)/assembled.stl images/preview.png
+	mkdir -p $@/stl && cd $@ && for p in rails plate; do \
+		$(PYTHON) tray.py --part $$p -o stl/$$p.stl && \
+		$(PYTHON) ../tools/preview.py stl/$$p.stl images/preview-$$p.png; \
+	done && \
+	$(PYTHON) tray.py --part assembled -o $(VENV)/assembled.stl && \
+	$(PYTHON) ../tools/preview.py $(VENV)/assembled.stl images/preview.png
