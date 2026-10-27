@@ -5,6 +5,7 @@
           ケースは充電口を下にして立て、底の真ん中の前後に抜けたすき間にケーブルを前から通す。
   cradle: 充電器 (エレコム EC-AC12945) の下の面に貼り、充電器の真下にケースを寝かせて置く棚。
           ケースは充電口を手前に向けて寝かせ、手前からケーブルを差す。手前の低い縁で前へすべり出ない。
+          左には Oura Ring Gen3 の充電ドックを置く場所があり、上を開けてあるので、リングを上から着け外しできる。
   hook:   天板の裏に貼る、ヘッドホンを掛けるフックだけ。cradle と組み合わせて使う。
 
 hanger のポケットは、ケースを前から斜めに入れて底に立てる。手前の下のほうに渡した棒で、前へ倒れ出ないようにする。
@@ -39,6 +40,11 @@ WINDOW = 8.0    # 奥の板の窓のふちの幅
 CABLE_W = 14.0  # hanger: 底の真ん中の、ケーブルのプラグを通すすき間の幅
 SILL_H = 5.0    # cradle: 手前の縁の高さ (底の上面から)。ケースの充電口より低くする
 SILL_LIFT = 2.0 # cradle: ケースを縁の上まで持ち上げて出し入れするときの余裕
+OURA_W = 50.0   # cradle: Oura Ring Gen3 の充電ドックの幅
+OURA_D = 50.0   # cradle: ドックの奥行き
+OURA_H = 20.0   # cradle: ドックの高さ。左の壁と奥の板はこの高さまでにして、リングを上から着け外しできるようにする
+OURA_CLEAR = 1.5  # cradle: ドックとのすき間 (幅と奥行き、それぞれ合計)
+OURA_NOTCH = 16.0 # cradle: ドックの奥の板の真ん中の、ケーブルを通す切り欠きの幅
 BAR_Z0 = 6.0    # 手前の棒の下の端 (底の上面から)。hanger ではこの下からケーブルを通す
 BAR_Z1 = 14.0   # 手前の棒の上の端
 BAR_T = 3.0     # 手前の棒の厚さ
@@ -70,6 +76,9 @@ else:
 z_plate = FLOOR_T + inner_h       # 貼る板の下面
 total_h = z_plate + PLATE_T
 depth = BAR_T + case_d + CLEAR + BACK_T
+if args.part == "cradle":
+    depth = max(depth, BAR_T + OURA_D + OURA_CLEAR + BACK_T)
+x_oura = -ow - (OURA_W + OURA_CLEAR)  # ドックの置き場所の左の端 (左の壁の内側)
 
 
 def rect(xa, xb, z0, z1):
@@ -109,8 +118,15 @@ def pocket(with_hook):
     prof = rect(-ow, ow, 0, total_h) + rect(-ow, x_right, z_plate, total_h)
     if with_hook:
         prof = prof + hook_arm(ow)
+    if args.part == "cradle":
+        # 左のドックの置き場所: いったん中まで埋めた形で丸め、あとで内側を削って底と左の壁を残す
+        # (薄い板のまま丸めると、外側の角を丸めるときに消える)
+        prof = prof + rect(x_oura - WALL, -ow + 1, 0, FLOOR_T + OURA_H)
     prof = smooth(prof)
     prof = prof - rounded_rect(-iw, iw, FLOOR_T, z_plate, R_IN)        # ポケットの中
+    if args.part == "cradle":
+        # ドックの置き場所の内側 (丸めでできた底の角のふくらみを削る)
+        prof = prof - rounded_rect(x_oura, -ow, FLOOR_T, total_h + 10, R_IN)
     if args.part == "hanger":
         prof = prof - rect(-CABLE_W / 2, CABLE_W / 2, -1, FLOOR_T + 1)  # ケーブルを通すすき間
     body = extrude_y(prof, 0, depth)
@@ -119,6 +135,14 @@ def pocket(with_hook):
     back = rect(-iw - 0.01, iw + 0.01, FLOOR_T - 0.01, z_plate + 0.01) - rounded_rect(
         -iw + WINDOW, iw - WINDOW, FLOOR_T + WINDOW, z_plate - WINDOW, 4.0)
     body = body + extrude_y(back, depth - BACK_T, depth)
+
+    if args.part == "cradle":
+        # ドックの奥の板 (真ん中はケーブルを通す切り欠き) と、手前の低い縁
+        n = OURA_NOTCH / 2
+        xc = x_oura + (OURA_W + OURA_CLEAR) / 2
+        back = rect(x_oura - 0.01, xc - n, FLOOR_T - 0.01, FLOOR_T + OURA_H) + rect(xc + n, -ow + 0.01, FLOOR_T - 0.01, FLOOR_T + OURA_H)
+        body = body + extrude_y(back, depth - BACK_T, depth)
+        body = body + box(x_oura - 0.01, -ow + 0.01, 0, BAR_T, FLOOR_T - 0.01, FLOOR_T + SILL_H)
 
     # 手前の棒 (cradle では低い縁)
     return body + box(-iw - 0.01, iw + 0.01, 0, BAR_T, FLOOR_T + bar_z0, FLOOR_T + bar_z1)
