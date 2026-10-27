@@ -11,7 +11,7 @@ iPad の幅 (249.7 mm) は A1 mini の造形範囲 (180 mm) に収まらない�
 iPad は前から差し込み、奥の抜け止めで止まる。手前は少しはみ出して、つかんで引き出せる。
 
 使用時の座標: X=左右 (X=0 がトレーの真ん中), Y=前後 (Y=0 が手前), Z=上 (天板の裏が Z 最大)
-STL はレール 2 本 (手前の面を下にして並べる) と、真ん中の板 (上面を下にする) の 2 つに分けて書き出す。
+STL はレール 2 本 (外側の壁の面を下にして寝かせる) と、真ん中の板 (上面を下にする) の 2 つに分けて書き出す。
 どちらもサポートなしで印刷できる。
 
 使い方: python tray.py --part rails -o stl/rails.stl
@@ -200,13 +200,15 @@ for name, a, b in (("左のレールと板", left, center), ("右のレールと
 
 # ---------- 書き出し ----------
 if args.part == "rails":
-    # 2 本を、手前の面 (Y=0) を下にして前後に並べる
-    out, y = None, 0.0
-    for part in (left, right):
-        p = part.rotate([-90, 0, 0])
+    # 2 本を、外側の壁の面を下にして寝かせ、左右に並べる。
+    # 立てると高さが 170 mm の細い部品になってぐらつくので、寝かせて高さを抑える。
+    # 棚と上の板は真上に立ち上がり、蟻の切り欠きの斜面も 45° より立っているのでサポートは要らない
+    out, x = None, 0.0
+    for part, angle in ((left, -90), (right, 90)):
+        p = part.rotate([0, angle, 0])
         b = p.bounding_box()
-        p = p.translate([-b[0], y - b[1], -b[2]])
-        y += b[4] - b[1] + GAP
+        p = p.translate([x - b[0], -b[1], -b[2]])
+        x += b[3] - b[0] + GAP
         out = p if out is None else out + p
 elif args.part == "plate":
     # 上面を下にする (ふちの段欠きが宙に浮かないように)
