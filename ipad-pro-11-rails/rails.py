@@ -1,11 +1,12 @@
 """iPad Pro 11 インチ (M4) を机の下にしまうレール (Bambu Lab A1 mini 向け)
 
 iPad の幅 (249.7 mm) は A1 mini の造形範囲 (180 mm) に収まらないので、左右 2 本のレールに分けている。
-レールは前後方向に伸び、iPad の左右のふちを下の棚で受ける。上の板を両面テープで天板の裏に貼る。
+レールは前後方向に伸び、iPad の左右のふちを下の棚で受ける。真ん中は、断面が I の字の支えで受ける。
+どれも上の板を両面テープで天板の裏に貼る。
 iPad は前から差し込み、奥の抜け止めで止まる。手前は少しはみ出して、つかんで引き出せる。
 
 使用時の座標: X=左右, Y=前後 (Y=0 が手前), Z=上 (天板の裏が Z 最大)
-STL は 2 本を並べ、断面を下にした向きで書き出してあり、サポートなしで印刷できる。
+STL は 3 本を並べ、断面を下にした向きで書き出してあり、サポートなしで印刷できる。
 
 使い方: python rails.py -o stl/rails.stl
 """
@@ -33,7 +34,9 @@ STOP_H = 3.0    # 奥の抜け止めの高さ
 STOP_L = 3.0    # 抜け止めの奥行き (この手前に 45° の斜面を付ける)
 R_OUT = 3.0     # 外側の角の丸み
 R_IN = 1.5      # 内側の角の丸み
-GAP = 10.0      # 印刷するときの 2 本の間隔
+CENTER_W = 30.0 # 真ん中の支えの上下の板の幅
+CENTER_WEB = 3.0  # 真ん中の支えの縦の板の厚さ
+GAP = 10.0      # 印刷するときの部品どうしの間隔
 SEG = 48
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -91,13 +94,21 @@ wedge = Manifold.hull_points([
 ])
 rail = rail + wedge
 
-# ---------- 書き出し: 左右 2 本を、手前の面 (Y=0) を下にして並べる ----------
-left = rail.rotate([-90, 0, 0])
-right = rail.mirror([1, 0, 0]).rotate([-90, 0, 0])
-bl, br = left.bounding_box(), right.bounding_box()
-left = left.translate([-bl[0], -bl[1], -bl[2]])
-right = right.translate([-br[0] + (bl[3] - bl[0]) + GAP, -br[1], -br[2]])
-printed = left + right
+# ---------- 真ん中の支え: 断面が I の字。下の板の上面を左右の棚の上面と同じ高さにそろえる ----------
+cw = CENTER_W / 2
+cprof = rect(-cw, 0, cw, SHELF_T) + rect(-cw, total_h - TAB_T, cw, total_h) + rect(-CENTER_WEB / 2, 0, CENTER_WEB / 2, total_h)
+cprof = round_convex(round_concave(cprof, R_IN), 1.0)
+center = Manifold.extrude(cprof, LENGTH).rotate([90, 0, 0]).translate([0, LENGTH, 0])
+
+# ---------- 書き出し: 3 本を、手前の面 (Y=0) を下にして並べる ----------
+printed = None
+x = 0.0
+for part in (rail, center, rail.mirror([1, 0, 0])):
+    p = part.rotate([-90, 0, 0])
+    b = p.bounding_box()
+    p = p.translate([x - b[0], -b[1], -b[2]])
+    x += b[3] - b[0] + GAP
+    printed = p if printed is None else printed + p
 
 write_stl(printed, args.output)
 bb = printed.bounding_box()
