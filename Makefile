@@ -2,9 +2,9 @@ VENV := $(CURDIR)/.venv
 PYTHON := $(VENV)/bin/python
 STAMP := $(VENV)/.installed
 
-.PHONY: all setup anker-powerexpand-elite-holder ore ipad-pro-11-tray
+.PHONY: all setup anker-powerexpand-elite-holder ore ipad-pro-11-tray desk-audio-hanger
 
-all: anker-powerexpand-elite-holder ore ipad-pro-11-tray
+all: anker-powerexpand-elite-holder ore ipad-pro-11-tray desk-audio-hanger
 
 setup: $(STAMP)
 
@@ -32,3 +32,7 @@ ipad-pro-11-tray: $(STAMP)
 	done && \
 	$(PYTHON) tray.py --part assembled -o $(VENV)/assembled.stl && \
 	$(PYTHON) ../tools/preview.py $(VENV)/assembled.stl images/preview.png
+
+desk-audio-hanger: $(STAMP)
+	mkdir -p $@/stl $@/images && cd $@ && $(PYTHON) hanger.py -o stl/hanger.stl && \
+		$(PYTHON) ../tools/preview.py stl/hanger.stl images/preview.png

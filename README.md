@@ -7,6 +7,7 @@
 | [anker-powerexpand-elite-holder](anker-powerexpand-elite-holder/) | Anker PowerExpand Elite 13-in-1 をデスクの天板の裏に取り付けるホルダー |
 | [ore](ore/) | 「俺」の字のオブジェ |
 | [ipad-pro-11-tray](ipad-pro-11-tray/) | iPad Pro 11 インチ (M4) を机の下にしまうトレー |
+| [desk-audio-hanger](desk-audio-hanger/) | イヤホンのケースとヘッドホンを、充電しながら机の下に掛けておくハンガー |
 
 ## STL の作り直し方
 
