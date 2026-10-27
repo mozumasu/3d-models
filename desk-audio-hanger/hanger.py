@@ -3,7 +3,7 @@
 部品は 3 種類あり、--part で選ぶ。どれも両面テープで貼る。
   hanger: 天板の裏に貼る。左がイヤホンのケースを立てて入れるポケット、右がヘッドホンを掛けるフック。
           ケースは充電口を下にして立て、底の真ん中の前後に抜けたすき間にケーブルを前から通す。
-  cradle: 充電器の下の面に貼り、充電器の真下にケースを置く受け皿。
+  cradle: 充電器 (エレコム EC-AC12945) の下の面に貼り、充電器の真下にケースを置く受け皿。
           ケースは充電口を上にして (ふたを下にして) 立て、上のすき間からケーブルを差す。
   hook:   天板の裏に貼る、ヘッドホンを掛けるフックだけ。cradle と組み合わせて使う。
 
@@ -38,6 +38,7 @@ BACK_T = 2.5    # 奥の板の厚さ
 WINDOW = 8.0    # 奥の板の窓のふちの幅
 CABLE_W = 14.0  # hanger: 底の真ん中の、ケーブルのプラグを通すすき間の幅
 PLUG_H = 28.0   # cradle: ケースの上から充電器の下の面までの、プラグを差すすき間
+CHARGER_D = 37.0  # cradle: 充電器 (エレコム EC-AC12945) の奥行き。貼る板をこの奥行きまで手前へ伸ばす
 BAR_Z0 = 6.0    # 手前の棒の下の端 (底の上面から)。hanger ではこの下からケーブルを通す
 BAR_Z1 = 14.0   # 手前の棒の上の端
 BAR_T = 3.0     # 手前の棒の厚さ
@@ -114,6 +115,12 @@ def pocket(with_hook):
     back = rect(-iw - 0.01, iw + 0.01, FLOOR_T - 0.01, z_plate + 0.01) - rounded_rect(
         -iw + WINDOW, iw - WINDOW, FLOOR_T + WINDOW, z_plate - WINDOW, 4.0)
     body = body + extrude_y(back, depth - BACK_T, depth)
+
+    # cradle の貼る板は、充電器の下の面の奥行きにそろうよう手前へ伸ばす
+    # (印刷時は上に積み上がる側なので、張り出しにはならない)
+    ext = CHARGER_D - depth
+    if args.part == "cradle" and ext > 0:
+        body = body + extrude_y(rounded_rect(-ow, ow, z_plate, total_h, R_OUT), -ext, 0.01)
 
     # 手前の棒
     return body + box(-iw - 0.01, iw + 0.01, 0, BAR_T, FLOOR_T + BAR_Z0, FLOOR_T + BAR_Z1)
