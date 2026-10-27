@@ -3,16 +3,16 @@
 部品は 3 種類あり、--part で選ぶ。どれも両面テープで貼る。
   hanger: 天板の裏に貼る。左がイヤホンのケースを立てて入れるポケット、右がヘッドホンを掛けるフック。
           ケースは充電口を下にして立て、底の真ん中の前後に抜けたすき間にケーブルを前から通す。
-  cradle: 充電器 (エレコム EC-AC12945) の下の面に貼り、充電器の真下にケースを置く受け皿。
-          ケースは充電口を上にして (ふたを下にして) 立て、上のすき間からケーブルを差す。
+  cradle: 充電器 (エレコム EC-AC12945) の下の面に貼り、充電器の真下にケースを寝かせて置く棚。
+          ケースは充電口を手前に向けて寝かせ、手前からケーブルを差す。手前の低い縁で前へすべり出ない。
   hook:   天板の裏に貼る、ヘッドホンを掛けるフックだけ。cradle と組み合わせて使う。
 
-ポケットと受け皿は、ケースを前から斜めに入れて底に立てる。手前の下のほうに渡した棒で、前へ倒れ出ないようにする。
+hanger のポケットは、ケースを前から斜めに入れて底に立てる。手前の下のほうに渡した棒で、前へ倒れ出ないようにする。
 フックは、壁の下から横に伸びる腕の先が上に折れていて、ヘッドバンドが抜けない。
 
 使用時の座標: X=左右, Y=前後 (Y=0 が手前), Z=上 (貼る面が Z 最大)
 STL は奥の面を下にした向きで書き出す。正面から見た形をそのまま積み上げるだけなので、サポートは要らない。
-手前の棒は左右の壁の間に渡したブリッジになる。
+手前の棒と縁は左右の壁の間に渡したブリッジになる。
 
 使い方: python hanger.py --part hanger -o stl/hanger.stl
         python hanger.py --part cradle -o stl/cradle.stl
@@ -37,8 +37,8 @@ PLATE_T = 3.0   # 貼る板の厚さ
 BACK_T = 2.5    # 奥の板の厚さ
 WINDOW = 8.0    # 奥の板の窓のふちの幅
 CABLE_W = 14.0  # hanger: 底の真ん中の、ケーブルのプラグを通すすき間の幅
-PLUG_H = 28.0   # cradle: ケースの上から充電器の下の面までの、プラグを差すすき間
-CHARGER_D = 37.0  # cradle: 充電器 (エレコム EC-AC12945) の奥行き。貼る板をこの奥行きまで手前へ伸ばす
+SILL_H = 5.0    # cradle: 手前の縁の高さ (底の上面から)。ケースの充電口より低くする
+SILL_LIFT = 2.0 # cradle: ケースを縁の上まで持ち上げて出し入れするときの余裕
 BAR_Z0 = 6.0    # 手前の棒の下の端 (底の上面から)。hanger ではこの下からケーブルを通す
 BAR_Z1 = 14.0   # 手前の棒の上の端
 BAR_T = 3.0     # 手前の棒の厚さ
@@ -61,11 +61,15 @@ args = parser.parse_args()
 
 iw = (CASE_W + CLEAR) / 2         # ポケットの内側の半分の幅
 ow = iw + WALL                    # 外側の半分の幅
-# 底の上面から貼る板の下面まで。cradle はケースの上にプラグのすき間を空け、棒を越えて出し入れする高さもそこでまかなう
-inner_h = CASE_H + (max(PLUG_H, BAR_Z1 + LIFT) if args.part == "cradle" else BAR_Z1 + LIFT)
-z_plate = FLOOR_T + inner_h
+if args.part == "cradle":
+    # ケースを寝かせる: 前後がケースの高さ、上下がケースの厚さ。手前の棒は底から立ち上がる低い縁にする
+    case_d, inner_h, bar_z0, bar_z1 = CASE_H, CASE_T + SILL_H + SILL_LIFT, -0.01, SILL_H
+else:
+    # ケースを立てる: 前後がケースの厚さ、上下がケースの高さ
+    case_d, inner_h, bar_z0, bar_z1 = CASE_T, CASE_H + BAR_Z1 + LIFT, BAR_Z0, BAR_Z1
+z_plate = FLOOR_T + inner_h       # 貼る板の下面
 total_h = z_plate + PLATE_T
-depth = BAR_T + CASE_T + CLEAR + BACK_T
+depth = BAR_T + case_d + CLEAR + BACK_T
 
 
 def rect(xa, xb, z0, z1):
@@ -100,7 +104,7 @@ def hook_arm(x0):
 
 
 def pocket(with_hook):
-    """ケースを立てて入れるポケット。with_hook で右の壁にフックを付ける"""
+    """ケースを入れるポケット。with_hook で右の壁にフックを付ける"""
     x_right = ow + ARM if with_hook else ow
     prof = rect(-ow, ow, 0, total_h) + rect(-ow, x_right, z_plate, total_h)
     if with_hook:
@@ -116,14 +120,8 @@ def pocket(with_hook):
         -iw + WINDOW, iw - WINDOW, FLOOR_T + WINDOW, z_plate - WINDOW, 4.0)
     body = body + extrude_y(back, depth - BACK_T, depth)
 
-    # cradle の貼る板は、充電器の下の面の奥行きにそろうよう手前へ伸ばす
-    # (印刷時は上に積み上がる側なので、張り出しにはならない)
-    ext = CHARGER_D - depth
-    if args.part == "cradle" and ext > 0:
-        body = body + extrude_y(rounded_rect(-ow, ow, z_plate, total_h, R_OUT), -ext, 0.01)
-
-    # 手前の棒
-    return body + box(-iw - 0.01, iw + 0.01, 0, BAR_T, FLOOR_T + BAR_Z0, FLOOR_T + BAR_Z1)
+    # 手前の棒 (cradle では低い縁)
+    return body + box(-iw - 0.01, iw + 0.01, 0, BAR_T, FLOOR_T + bar_z0, FLOOR_T + bar_z1)
 
 
 def hook():
