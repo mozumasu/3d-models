@@ -1,7 +1,8 @@
 """「俺」の字のオブジェ (Bambu Lab A1 mini 向け)
 
-字の形を押し出し、下に台座の帯を付けて、離れた部首 (亻と奄) をつないでいる。
-立てて飾る。STL は字の面を下にした向きで書き出してあり、サポートなしで印刷できる。
+字の形を押し出しただけの形で、立てて飾る。Noto Sans JP の太字では亻と奄がくっついているので 1 個の部品になり、
+亻の縦棒と乚のはねの 2 か所で接地して自立する。BASE_H を 0 より大きくすると、下に台座の帯を付ける。
+STL は字の面を下にした向きで書き出してあり、サポートなしで印刷できる。
 字形は Noto Sans JP (SIL Open Font License) を使い、初回に .cache へダウンロードする。
 
 使い方: python ore.py -o stl/ore.stl
@@ -25,7 +26,7 @@ CHAR = "俺"
 WEIGHT = 700      # 字の太さ (100〜900)。細いと折れやすい
 HEIGHT = 70.0     # 字の高さ (台座を除く)
 THICK = 18.0      # 字の厚み (立てたときの奥行き)
-BASE_H = 5.0      # 台座の帯の高さ
+BASE_H = 0.0      # 台座の帯の高さ (0 で無し)
 BASE_PAD = 2.0    # 台座の帯を字の左右にはみ出させる長さ
 CURVE_STEPS = 12  # 曲線 1 本を何本の線分で近似するか
 
@@ -106,12 +107,13 @@ shape = shape.translate([-x0, -y0]).scale([s, s])
 w = (x1 - x0) * s
 
 # 台座の帯: 字の下端に少し重ねて、離れた部首をつなぐ
-base = CrossSection.square([w + 2 * BASE_PAD, BASE_H + 1.0]).translate([-BASE_PAD, -BASE_H])
-shape = shape + base
+if BASE_H > 0:
+    base = CrossSection.square([w + 2 * BASE_PAD, BASE_H + 1.0]).translate([-BASE_PAD, -BASE_H])
+    shape = shape + base
 
 parts = len(shape.decompose())
 if parts != 1:
-    print(f"warning: 字が {parts} 個に分かれています (台座の帯につながっていない部分があります)")
+    print(f"warning: 字が {parts} 個に分かれています (WEIGHT を上げるか BASE_H を付けてください)")
 
 body = Manifold.extrude(shape, THICK)
 bb = body.bounding_box()
